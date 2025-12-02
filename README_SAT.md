@@ -2,7 +2,7 @@
 Este es el codigo actualizado del satélite en arduino hasta la fecha. En él consta todo el programa hasta la versión tres.
 
 # Declaración de puertos series y demás variables:
-El prorama inicia con el siguiente código y se identifica los puertos 10 y 11 como los que envían y reciben información. Además de los pines 2 (LED de funcionamiento ), 3, 4 (sensor de distancia) y 5 (para el servomotor). Por otro lado también se declaran las variables iniciales como los ángulos iniciales, los tiempos de espera, los estados del LED, el TOKEN para enviar y/o recibir información o el checksum.
+El programa inicia con el siguiente código y se identifica los puertos 10 y 11 como los que envían y reciben información. Además de los pines 2 (LED de funcionamiento ), 3, 4 (sensor de distancia) y 5 (para el servomotor). Por otro lado también se declaran las variables iniciales como los ángulos iniciales, los tiempos de espera, los estados del LED, el TOKEN para enviar y/o recibir información o el checksum.
   ```bash
    #include <DHT.h> 
 #include <SoftwareSerial.h>
