@@ -5,7 +5,7 @@ Sistema de comunicación satélite-tierra con LoRa. Transmite datos de temperatu
 Este es el codigo actualizado del satélite en arduino hasta la fecha. En él consta todo el programa hasta la versión tres.
 
 # Declaracion de puertos series y demás variables:
-El prorama inicia con el siguiente código y se identifica los puertos 10 y 11 como los que envian y reciben información. Además de los pines 2 (LED de funcionamiento ), 3, 4 (sensor de distancia) y 5 (para el servomotor). Por otro lado también se declaran las variables iniciales como los ángulos iniciales, los tiempos de espera, los estados del LED, el TOKEN para enviar y/o recibir información o el checksum.
+El prorama inicia con el siguiente código y se identifica los puertos 10 y 11 como los que envían y reciben información. Además de los pines 2 (LED de funcionamiento ), 3, 4 (sensor de distancia) y 5 (para el servomotor). Por otro lado también se declaran las variables iniciales como los ángulos iniciales, los tiempos de espera, los estados del LED, el TOKEN para enviar y/o recibir información o el checksum.
   ```bash
    #include <DHT.h> 
 #include <SoftwareSerial.h>
@@ -112,4 +112,109 @@ void validateAndHandle(const String &data) {
     }
 }
 ```
+# Sensor de distancia
+En la siguiente fucnión se observa el fucnionamiento manual del servomotor a partir de un potenciómetro: 
+  ``` bash
+int pingSensor() {
+    digitalWrite(trigPin, LOW);
+    delayMicroseconds(4);
+    digitalWrite(trigPin, HIGH);
+    delayMicroseconds(10);
+    digitalWrite(trigPin, LOW);
+    unsigned long dur = pulseIn(echoPin, HIGH, PULSE_TIMEOUT_US);
+    if (dur == 0) return 0;
+    return (int)(dur * 0.343 / 2.0);
+}
+```
+
 # Protocolo de aplicación satélite
+Este protocolo se lleva desarrollando desde la versión 2 y aun prosigue. En esta última versión dicho protocolo lo que hace es enviar un número al principio de tal manera que cuando se recibe identifica este número con un dato concreto. Por ejemplo al enviar _67_ es para el Token de enviar o recibir información. 
+Este es el comando entero:
+  _"1: "_: Recibe un número y es para enviar.
+  _"2: "_: Para controlar manualmente el servo.
+  _"3: "_: Para enviar o no.
+  _"4: "_: Utilizado para el ángulo del sensor.
+  _"5: "_: Para hacer el ángulo manualmente con el potenciómetro.
+  
+  ``` bash
+void handleCommand(const String &cmd) {
+    Serial.println("RX cmd: " + cmd);
+
+    if (cmd == "67:1") {
+        canTransmit = true;
+        lastTokenTime = millis();
+        return;
+    } else if (cmd == "67:0") {
+        canTransmit = false;
+        return;
+    }
+    
+    if (cmd.startsWith("1:")) {
+        sendPeriod = max(200UL, cmd.substring(2).toInt());
+        // confirm (opcional)
+        sendPacketWithChecksum(67, "0"); // no alterar protocolo, solo ejemplo si quieres ack
+    }
+    else if (cmd.startsWith("2:")) {
+        // comando para establecer ANGULO MANUAL (2:ang) — MODIF
+        manualTargetAngle = constrain(cmd.substring(2).toInt(), 0, 180);
+        Serial.println("Set manualTargetAngle via 2: -> " + String(manualTargetAngle));
+        if (!autoDistance) {
+            motor.write(manualTargetAngle);
+            servoAngle = manualTargetAngle;
+        }
+        // Enviar confirmación/eco del nuevo ángulo para que ground/Python lo muestren. -- MODIF
+        sendPacketWithChecksum(6, String(manualTargetAngle));
+    }
+    else if (cmd == "3:i" || cmd == "3:r") sending = true;
+    else if (cmd == "3:p") sending = false;
+    else if (cmd == "4:a") {
+        autoDistance = true;
+        Serial.println("Modo AUTO activado (4:a)");
+        // confirmación del modo y del ángulo actual -- MODIF
+        sendPacketWithChecksum(6, String(servoAngle));
+    }
+    else if (cmd == "4:m") { 
+        autoDistance = false;
+        motor.write(manualTargetAngle);
+        servoAngle = manualTargetAngle;
+        Serial.println("Modo MANUAL activado (4:m), ang -> " + String(manualTargetAngle));
+        // confirmación del modeo manual y ángulo -- MODIF
+        sendPacketWithChecksum(6, String(servoAngle));
+    }
+    else if (cmd.startsWith("5:")) {
+        // comando para establecer ANGULO MANUAL (5:ang) — MODIF (acepta 5: también)
+        int ang = constrain(cmd.substring(2).toInt(), 0, 180);
+        manualTargetAngle = ang;
+        Serial.println("Set manualTargetAngle via 5: -> " + String(manualTargetAngle));
+        if (!autoDistance) servoAngle = manualTargetAngle;
+        // confirmar ángulo recibido y aplicado
+        sendPacketWithChecksum(6, String(manualTargetAngle));
+    }
+}
+```
+
+# Cálculo de la temperatura media
+En esta función se hace el calculo de la media de las últimas 10 temperaturas registradas. En el caso es que el cálculo de tres medias consecutivas sea mayor que 100ºC se enviarà una alerta.
+  ```bash
+void updateTempMedia(float nuevaTemp) {
+  tempHistory[tempIndex] = nuevaTemp;
+  tempIndex = (tempIndex + 1) % TEMP_HISTORY;
+  if (tempIndex == 0) tempFilled = true;
+
+  int n = tempFilled ? TEMP_HISTORY : tempIndex;
+  float suma = 0;
+  for (int i = 0; i < n; i++) suma += tempHistory[i];
+  tempMedia = suma / n;
+
+  medias[mediaIndex] = tempMedia;
+  mediaIndex = (mediaIndex + 1) % 3;
+
+  bool alerta = true;
+  for (int i = 0; i < 3; i++) {
+    if (medias[i] <= 100.0) alerta = false;
+  }
+  if (alerta) sendPacketWithChecksum(8, "e");
+}
+```
+
+#
