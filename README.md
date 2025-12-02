@@ -67,3 +67,49 @@ double real_orbital_period;
 double r;
 unsigned long orbitStartTime = 0;
    ```
+
+# Función checksum:
+Esta función se ha incorporado recientemente en la versión 3. Lo que realiza es el cálculo del checksum del mensaje que se envía a la estación de tierra con la función _calcChecksum_ y para tal de poder enviarla la función _sendPacketWithChecksum_
+  ```bash
+String calcChecksum(const String &msg) {
+  uint8_t xorSum = 0;
+  for (unsigned int i = 0; i < msg.length(); i++) {
+    xorSum ^= msg[i];
+  }
+  String hex = String(xorSum, HEX);
+  hex.toUpperCase();
+  if (hex.length() == 1) hex = "0" + hex;
+  return hex;
+}
+
+void sendPacketWithChecksum(uint8_t type, const String &payload) {
+  String msg = String(type) + ":" + payload;
+  String chk = calcChecksum(msg);
+  String fullMsg = msg + "*" + chk;
+  satSerial.println(fullMsg);
+  Serial.println("-> " + fullMsg);
+}
+  ```
+Más adelante en el código (no al siguiente), se encuentra la función _validateAndHandle_ de manera que si el checksum enviado con corresponde con el que devería el mensaje se descara ya que es considerado un mensaje corrupto.
+  ``` bash
+void validateAndHandle(const String &data) {
+    int asterisco = data.indexOf('*');
+    if (asterisco == -1) {
+        Serial.println("CMD sin checksum, descartado");
+        corruptedCommands++;
+        return;
+    }
+    
+    String msg = data.substring(0, asterisco);
+    String chkRecv = data.substring(asterisco + 1);
+    String chkCalc = calcChecksum(msg);
+    
+    if (chkRecv == chkCalc) {
+        handleCommand(msg);
+    } else {
+        Serial.println("CMD corrupto, descartado");
+        corruptedCommands++;
+    }
+}
+```
+# Protocolo de aplicación satélite
