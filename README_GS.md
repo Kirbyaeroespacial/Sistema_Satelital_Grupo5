@@ -88,5 +88,18 @@ void prot9(String valor) {
     Serial.println(" m)");
   }
 }
+```
 
+# Inicio del programa
+A partir de aquí inicia todas las funciones del GS, todo lo previo son funciones para poder llevar a cabo el funcionamiento.
+  ```bash
+void setup() {
+  Serial.begin(9600);
+  mySerial.begin(9600);
+  Serial.println("COMM LISTO orbital");
+  pinMode(errpin, OUTPUT);
+  lastTokenSent = millis();
+  lastStatsReport = millis();
+  lastReceived = millis(); // AÑADIDO: evitar timeout inicial
+}
 ```
