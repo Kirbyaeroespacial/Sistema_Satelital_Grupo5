@@ -194,7 +194,7 @@ void handleCommand(const String &cmd) {
 ```
 
 # Cálculo de la temperatura media
-En esta función se hace el calculo de la media de las últimas 10 temperaturas registradas. En el caso es que el cálculo de tres medias consecutivas sea mayor que 100ºC se enviarà una alerta.
+En esta función se hace el cálculo de la media de las últimas 10 temperaturas registradas. En el caso es que el cálculo de tres medias consecutivas sea mayor que 100ºC se enviarà una alerta.
   ```bash
 void updateTempMedia(float nuevaTemp) {
   tempHistory[tempIndex] = nuevaTemp;
@@ -217,4 +217,116 @@ void updateTempMedia(float nuevaTemp) {
 }
 ```
 
-#
+# Simulación orbital
+Esta función se ha incorporado en la posición de una hipotética órbita satelital con unas funciones y valores ya asumidos.
+  ```bash
+void simulate_orbit() {
+    unsigned long currentMillis = millis();
+    double time = ((currentMillis - orbitStartTime) / 1000.0) * TIME_COMPRESSION;
+    double angle = 2.0 * PI * (time / real_orbital_period);
+    
+    long x = (long)(r * cos(angle));
+    long y = (long)(r * sin(angle));
+    long z = 0;
+    
+    String payload = String((long)time) + ":" + String(x) + ":" + String(y) + ":" + String(z);
+    sendPacketWithChecksum(9, payload);
+}
+```
+# Inicia el programa
+Todo lo de antes son funciones para que el programa pueda realizar lo que nosotros queramos. Con este _setup_ empieza todo.
+  ```bash
+void setup() {
+    Serial.begin(9600);
+    satSerial.begin(9600);
+    pinMode(LEDPIN, OUTPUT);
+    digitalWrite(LEDPIN, LOW);
+    pinMode(trigPin, OUTPUT);
+    pinMode(echoPin, INPUT);
+    dht.begin();
+    motor.attach(servoPin);
+    motor.write(servoAngle);
+    lastTokenTime = millis();
+    
+    // Inicializar órbita
+    r = R_EARTH + ALTITUDE;
+    real_orbital_period = 2.0 * PI * sqrt(pow(r, 3) / (G * M));
+    orbitStartTime = millis();
+    
+    Serial.println("SAT listo con orbital");
+}
+```
+# Bucle del satélite
+Este bucle ya esta dentro del programa y aprovechando las funciones declaradas previamentes, varaiables y el protocolo de aplicación hacemos lo siguiente:
+· Envío distancia y ángulo.
+· Validadicón para saber si se puede enviar o no (Token).
+· Envío de temperatura y humedad, además de la media.
+· La posición orbital
+  ```bash
+void loop() {
+    unsigned long now = millis();
+    
+    // Servo automático
+    if (autoDistance && now - lastServoMove >= SERVO_MOVE_INTERVAL) {
+        lastServoMove = now;
+        servoAngle += servoDir * SERVO_STEP;
+        if (servoAngle >= 180) { servoAngle = 180; servoDir = -1; }
+        else if (servoAngle <= 0) { servoAngle = 0; servoDir = 1; }
+        motor.write(servoAngle);
+    }
+
+    // Leer comandos con validación (prioridad)
+    if (satSerial.available()) {
+        String cmd = satSerial.readStringUntil('\n');
+        cmd.trim();
+        if (cmd.length()) validateAndHandle(cmd);
+    }
+
+    // Recuperación por timeout
+    if (!canTransmit && now - lastTokenTime > TOKEN_TIMEOUT) {
+        canTransmit = true;
+        Serial.println("Timeout: recuperando transmisión");
+    }
+
+    // Envío de datos
+    if (now - lastSend >= sendPeriod) {
+        if (sending && canTransmit) {
+            // Sensores
+            float h = dht.readHumidity();
+            float t = dht.readTemperature();
+            if (isnan(h) || isnan(t)) {
+                sendPacketWithChecksum(4, "e:1");
+            } else {
+                sendPacketWithChecksum(1, String((int)(h * 100)) + ":" + String((int)(t * 100)));
+                updateTempMedia(t);
+                sendPacketWithChecksum(7, String((int)(tempMedia * 100)));
+            }
+
+            int dist = pingSensor();
+            if (dist == 0) sendPacketWithChecksum(5, "e:1");
+            else sendPacketWithChecksum(2, String(dist));
+
+            if (!motor.attached()) sendPacketWithChecksum(6, "e:1");
+            else sendPacketWithChecksum(6, String(servoAngle));
+
+            // === POSICIÓN ORBITAL ===
+            simulate_orbit();
+
+            // Libera turno
+            sendPacketWithChecksum(67, "0");
+            canTransmit = false;
+            
+        }
+
+        digitalWrite(LEDPIN, HIGH);
+        ledTimer = now;
+        ledState = true;
+        lastSend = now;
+    }
+
+    if (ledState && now - ledTimer > 80) {
+        digitalWrite(LEDPIN, LOW);
+        ledState = false;
+    }
+}
+```
