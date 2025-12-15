@@ -1,12 +1,3 @@
-// ================= GROUND STATION - ESTACIÓN TERRESTRE =================
-// Sistema de comunicación con satélite mediante protocolo serie con checksum
-// Características:
-// - Control manual del servo mediante potenciómetro
-// - Detección de timeout (20s sin datos)
-// - Gestión de turnos de comunicación
-// - Recepción de telemetría binaria
-// - Validación de integridad mediante checksum XOR
-
 #include <SoftwareSerial.h>
 SoftwareSerial mySerial(10, 11); // RX=10, TX=11 para comunicación con satélite
 
@@ -454,3 +445,4 @@ void loop() {
     }
   }
 }
+
