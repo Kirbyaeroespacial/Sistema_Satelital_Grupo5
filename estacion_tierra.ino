@@ -1,25 +1,52 @@
-#include <SoftwareSerial.h>
-SoftwareSerial mySerial(10, 11); // RX, TX
+// ================= GROUND STATION - ESTACIÓN TERRESTRE =================
+// Sistema de comunicación con satélite mediante protocolo serie con checksum
+// Características:
+// - Control manual del servo mediante potenciómetro
+// - Detección de timeout (20s sin datos)
+// - Gestión de turnos de comunicación
+// - Recepción de telemetría binaria
+// - Validación de integridad mediante checksum XOR
 
-int errpin = 2;
-char potent = A0;
+#include <SoftwareSerial.h>
+SoftwareSerial mySerial(10, 11); // RX=10, TX=11 para comunicación con satélite
+
+// ==================== PINES Y CONFIGURACIÓN ====================
+int errpin = 2;        // LED de error (checksum inválido)
+int alarmpin = 13;     // LED de alarma (timeout)
+char potent = A0;      // Potenciómetro para control manual del servo
+
+// Timeouts y delays
 unsigned long lastReceived = 0;
 unsigned long last = 0;
-const unsigned long timeout = 20000; // CORREGIDO: de 5000 a 8000
-const unsigned long delay_ang = 20000; // CORREGIDO: de 200 a 1500
+const unsigned long timeout = 20000;    // 20 segundos sin datos = alarma
+const unsigned long delay_ang = 500;    // Leer potenciómetro cada 500ms
 
-// Gestión de turnos
+// Variables de modo manual
+bool manualMode = false;  // true = potenciómetro controla servo
+int lastPotAngle = -1;    // Último ángulo enviado (evitar duplicados)
+
+// Gestión de turnos (token passing)
 bool satHasToken = false;
 unsigned long lastTokenSent = 0;
-const unsigned long TOKEN_CYCLE = 2500;
+const unsigned long TOKEN_CYCLE = 2500;  // Ciclo de turno: 2.5 segundos
 
-// Checksum: contadores
+// Contador de mensajes corruptos
 int corruptedFromSat = 0;
 unsigned long lastStatsReport = 0;
-const unsigned long STATS_INTERVAL = 10000;
+const unsigned long STATS_INTERVAL = 10000;  // Reportar cada 10 segundos
 
-// === CHECKSUM ===
+// Variables para alarma de timeout
+bool timeoutAlarm = false;
+bool alarmState = false;
+unsigned long lastAlarmToggle = 0;
+const unsigned long ALARM_BLINK_INTERVAL = 300;  // Parpadeo cada 300ms
+
+// ==================== FUNCIONES DE CHECKSUM ====================
 String calcChecksum(const String &msg) {
+  /**
+   * Calcula checksum XOR de un mensaje
+   * Retorna: String hexadecimal de 2 dígitos (ej: "A5", "3F")
+   */
   uint8_t xorSum = 0;
   for (unsigned int i = 0; i < msg.length(); i++) {
     xorSum ^= msg[i];
@@ -31,13 +58,23 @@ String calcChecksum(const String &msg) {
 }
 
 void sendWithChecksum(const String &msg) {
+  /**
+   * Envía mensaje con checksum al satélite
+   * Formato: mensaje*checksum\n
+   * Ejemplo: "5:90*4A\n"
+   */
   String chk = calcChecksum(msg);
   String fullMsg = msg + "*" + chk;
   mySerial.println(fullMsg);
-  Serial.println("GS-> " + fullMsg); // AÑADIDO: debug
+  Serial.println("GS-> " + fullMsg);
 }
 
 bool validateMessage(const String &data, String &cleanMsg) {
+  /**
+   * Valida el checksum de un mensaje recibido
+   * Retorna: true si checksum válido, false si corrupto
+   * cleanMsg: mensaje sin el checksum (salida por referencia)
+   */
   int asterisco = data.indexOf('*');
   if (asterisco == -1) return false;
   
@@ -48,20 +85,34 @@ bool validateMessage(const String &data, String &cleanMsg) {
   return (chkRecv == chkCalc);
 }
 
-// Protocolo de aplicación
-void prot1(String valor) { Serial.println("1:" + valor); }
-void prot2(String valor) { Serial.println("2:" + valor); }
-void prot3(String valor) { Serial.println("3:" + valor); }
-void prot4(String valor) { Serial.println("4:" + valor); }
-void prot5(String valor) { Serial.println("5:" + valor); }
-void prot6(String valor) { Serial.println("6:" + valor); }
-void prot7(String valor) { Serial.println("7:" + valor); }
-void prot8(String valor) { Serial.println("8:e"); }
+// ==================== PROTOCOLOS DE APLICACIÓN ====================
+// Funciones que reenvían datos del satélite al PC mediante Serial
 
-// === PROTOCOLO ORBITAL (reformatea para Python) ===
+void prot1(String valor) { Serial.println("1:" + valor); }  // Temp y humedad
+void prot2(String valor) { Serial.println("2:" + valor); }  // Distancia
+void prot3(String valor) { Serial.println("3:" + valor); }  // Estado transmisión
+void prot4(String valor) { 
+  // Cambio de modo automático/manual
+  if (valor == "a") {
+    manualMode = false;
+    Serial.println("4:a");
+    Serial.println("Modo AUTO activado desde GUI");
+  } else if (valor == "m") {
+    manualMode = true;
+    Serial.println("4:m");
+    Serial.println("Modo MANUAL activado desde GUI");
+  }
+}
+void prot5(String valor) { Serial.println("5:" + valor); }  // Ángulo servo
+void prot6(String valor) { Serial.println("6:" + valor); }  // Confirmación ángulo
+void prot7(String valor) { Serial.println("7:" + valor); }  // Temperatura media
+void prot8(String valor) { Serial.println("8:e"); }         // Error/alarma
+
 void prot9(String valor) {
-  // Recibe: tiempo:X:Y:Z
-  // Envía: Position: (X: ... m, Y: ... m, Z: ... m)
+  /**
+   * Procesa datos orbitales (formato: time:x:y:z)
+   * Reenvía al PC en formato legible
+   */
   int sep1 = valor.indexOf(':');
   int sep2 = valor.indexOf(':', sep1 + 1);
   int sep3 = valor.indexOf(':', sep2 + 1);
@@ -81,27 +132,208 @@ void prot9(String valor) {
   }
 }
 
-void setup() {
-  Serial.begin(9600);
-  mySerial.begin(9600);
-  Serial.println("COMM LISTO orbital");
-  pinMode(errpin, OUTPUT);
-  lastTokenSent = millis();
-  lastStatsReport = millis();
-  lastReceived = millis(); // AÑADIDO: evitar timeout inicial
+void prot10(String valor) {
+  /**
+   * Reenvía estado del panel solar (0, 40, 60, 100%)
+   */
+  Serial.print("Panel:");
+  Serial.println(valor);
 }
 
+// ==================== TELEMETRÍA BINARIA ====================
+// Estructura para recibir telemetría en formato compacto
+
+#pragma pack(push, 1)  // Empaquetar sin padding
+struct TelemetryFrame {
+  uint8_t header;        // 0xAA (marcador de inicio)
+  uint16_t humidity;     // Humedad (dividir por 100 para %)
+  int16_t temperature;   // Temperatura (dividir por 100 para °C)
+  uint16_t tempAvg;      // Temperatura media
+  uint16_t distance;     // Distancia en mm
+  uint8_t servoAngle;    // Ángulo del servo (0-180)
+  uint16_t time_s;       // Tiempo de órbita en segundos
+  // Coordenadas orbitales (4 bytes cada una, little-endian)
+  uint8_t x_b0, x_b1, x_b2, x_b3;
+  uint8_t y_b0, y_b1, y_b2, y_b3;
+  uint8_t z_b0, z_b1, z_b2, z_b3;
+  uint8_t panelState;    // Estado panel solar (0, 40, 60, 100)
+  uint8_t checksum;      // XOR de todos los bytes anteriores
+};
+#pragma pack(pop)
+const size_t TELEMETRY_FRAME_SIZE = sizeof(TelemetryFrame);
+
+int32_t bytesToInt32(uint8_t b0, uint8_t b1, uint8_t b2, uint8_t b3) {
+  /**
+   * Reconstruye un int32 desde 4 bytes (little-endian)
+   */
+  int32_t val = 0;
+  val |= ((int32_t)b0);
+  val |= ((int32_t)b1 << 8);
+  val |= ((int32_t)b2 << 16);
+  val |= ((int32_t)b3 << 24);
+  return val;
+}
+
+bool readBinaryTelemetry() {
+  /**
+   * Lee un frame de telemetría binario completo
+   * Retorna: true si se procesó un frame (válido o corrupto)
+   *          false si no hay suficientes datos
+   */
+  if (mySerial.available() < (int)TELEMETRY_FRAME_SIZE) {
+    return false;
+  }
+
+  // Verificar header sin consumir
+  int p = mySerial.peek();
+  if (p != 0xAA) {
+    return false;
+  }
+
+  // Leer frame completo
+  TelemetryFrame frame;
+  uint8_t *raw = (uint8_t*)&frame;
+  
+  size_t bytesRead = 0;
+  unsigned long startTime = millis();
+  
+  // Leer con timeout de 200ms
+  while (bytesRead < TELEMETRY_FRAME_SIZE && (millis() - startTime) < 200) {
+    if (mySerial.available()) {
+      raw[bytesRead] = mySerial.read();
+      bytesRead++;
+    }
+  }
+  
+  // Verificar que se leyó el frame completo
+  if (bytesRead != TELEMETRY_FRAME_SIZE) {
+    Serial.print("ERROR: frame incompleto, leidos ");
+    Serial.print(bytesRead);
+    Serial.print("/");
+    Serial.println(TELEMETRY_FRAME_SIZE);
+    corruptedFromSat++;
+    return true;
+  }
+
+  if (frame.header != 0xAA) {
+    Serial.println("ERROR: header inválido");
+    corruptedFromSat++;
+    return true;
+  }
+
+  // Calcular checksum (XOR de todos los bytes excepto el último)
+  uint8_t cs = 0;
+  for (size_t i = 0; i < TELEMETRY_FRAME_SIZE - 1; i++) {
+    cs ^= raw[i];
+  }
+
+  Serial.print("RX: H=");
+  Serial.print(frame.header, HEX);
+  Serial.print(" Hum=");
+  Serial.print(frame.humidity);
+  Serial.print(" T=");
+  Serial.print(frame.temperature);
+  Serial.print(" CS_calc=");
+  Serial.print(cs, HEX);
+  Serial.print(" CS_recv=");
+  Serial.print(frame.checksum, HEX);
+
+  if (cs != frame.checksum) {
+    Serial.println(" -> CORRUPTO!");
+    corruptedFromSat++;
+    digitalWrite(errpin, HIGH);
+    delay(100);
+    digitalWrite(errpin, LOW);
+    return true;
+  }
+
+  Serial.println(" -> OK!");
+
+  // Reconstruir coordenadas orbitales
+  int32_t x = bytesToInt32(frame.x_b0, frame.x_b1, frame.x_b2, frame.x_b3);
+  int32_t y = bytesToInt32(frame.y_b0, frame.y_b1, frame.y_b2, frame.y_b3);
+  int32_t z = bytesToInt32(frame.z_b0, frame.z_b1, frame.z_b2, frame.z_b3);
+
+  // Reenviar datos al PC
+  String humTemp = String(frame.humidity) + ":" + String(frame.temperature);
+  prot1(humTemp);
+  prot7(String(frame.tempAvg));
+  prot2(String(frame.distance));
+  prot6(String(frame.servoAngle));
+
+  String orbStr = String(frame.time_s) + ":" + String(x) + ":" + String(y) + ":" + String(z);
+  prot9(orbStr);
+  prot10(String(frame.panelState));
+
+  lastReceived = millis();
+  
+  return true;
+}
+
+// ==================== GESTIÓN DE ALARMA DE TIMEOUT ====================
+void updateTimeoutAlarm() {
+  /**
+   * Verifica si han pasado >20s sin recibir datos
+   * Si es así, hace parpadear el LED de alarma
+   */
+  unsigned long now = millis();
+  
+  if (now - lastReceived > timeout) {
+    if (!timeoutAlarm) {
+      timeoutAlarm = true;
+      Serial.println("¡ALARMA! TIMEOUT: sin datos del satélite");
+    }
+    
+    // Parpadeo del LED
+    if (now - lastAlarmToggle > ALARM_BLINK_INTERVAL) {
+      alarmState = !alarmState;
+      digitalWrite(alarmpin, alarmState ? HIGH : LOW);
+      lastAlarmToggle = now;
+    }
+  } else {
+    // Comunicación OK
+    if (timeoutAlarm) {
+      timeoutAlarm = false;
+      Serial.println("Comunicación restaurada");
+    }
+    digitalWrite(alarmpin, LOW);
+    alarmState = false;
+  }
+}
+
+// ==================== SETUP ====================
+void setup() {
+  Serial.begin(9600);      // Comunicación con PC
+  mySerial.begin(9600);    // Comunicación con satélite
+  
+  pinMode(errpin, OUTPUT);
+  pinMode(alarmpin, OUTPUT);
+  digitalWrite(alarmpin, LOW);
+  
+  Serial.print("Tamaño frame esperado: ");
+  Serial.println(TELEMETRY_FRAME_SIZE);
+  Serial.println("GS LISTO (protocolo binario + modo manual potenciómetro + timeout)");
+  
+  lastTokenSent = millis();
+  lastStatsReport = millis();
+  lastReceived = millis();
+}
+
+// ==================== LOOP PRINCIPAL ====================
 void loop() {
   unsigned long now = millis();
 
-  // Gestión de turnos
+  // Verificar timeout
+  updateTimeoutAlarm();
+
+  // Gestión de turnos: enviar token al satélite cada 2.5s
   if (!satHasToken && now - lastTokenSent > TOKEN_CYCLE) {
-    sendWithChecksum("67:1");
+    sendWithChecksum("67:1");  // Token = 1 (satélite puede transmitir)
     satHasToken = true;
     lastTokenSent = now;
   }
 
-  // Estadísticas cada 10s
+  // Reportar estadísticas de errores cada 10s
   if (now - lastStatsReport > STATS_INTERVAL) {
     if (corruptedFromSat > 0) {
       Serial.println("99:" + String(corruptedFromSat));
@@ -110,41 +342,73 @@ void loop() {
     lastStatsReport = now;
   }
 
-  // CORREGIDO: Comandos de usuario con checksum
+  // Comandos desde PC (Python GUI)
   if (Serial.available()) {
     String command = Serial.readStringUntil('\n');
     command.trim();
     if (command.length() > 0) {
-      // Verificar si el comando YA tiene checksum (viene de Python corregido)
+      // Detectar comandos de cambio de modo
+      if (command == "4:a") {
+        manualMode = false;
+        Serial.println("Modo AUTO desde comando");
+      } else if (command == "4:m") {
+        manualMode = true;
+        Serial.println("Modo MANUAL desde comando");
+      }
+      
+      // Reenviar comando al satélite
       if (command.indexOf('*') != -1) {
-        // Ya tiene checksum, enviar directamente
-        mySerial.println(command);
-        Serial.println("GS-> " + command); // AÑADIDO: debug
+        mySerial.println(command);  // Ya tiene checksum
+        Serial.println("GS-> " + command);
       } else {
-        // No tiene checksum, añadirlo (compatibilidad con comandos manuales)
-        sendWithChecksum(command);
+        sendWithChecksum(command);  // Agregar checksum
       }
     }
   }
 
-  // Ángulo del potenciómetro con checksum (CORREGIDO: delay aumentado)
+  // Control del potenciómetro (cada 500ms)
   if (now - last > delay_ang) {
     int potval = analogRead(potent);
-    int angle = map(potval, 0, 1023, 180, 0);
-    sendWithChecksum("5:" + String(angle));
+    int angle = map(potval, 0, 1023, 180, 0);  // Invertir rango
+    
+    // Solo enviar en modo manual y si cambió significativamente (±2°)
+    if (manualMode) {
+      if (abs(angle - lastPotAngle) > 2) {
+        sendWithChecksum("5:" + String(angle));
+        lastPotAngle = angle;
+        Serial.print("Potenciómetro manual: ");
+        Serial.println(angle);
+      }
+    } else {
+      lastPotAngle = angle;  // Actualizar para cuando cambie a manual
+    }
+    
     last = now;
   }
   
-  // Recepción con validación
+  // ==================== RECEPCIÓN DE DATOS ====================
   if (mySerial.available()) {
+    int p = mySerial.peek();
+    
+    // Si es telemetría binaria (empieza con 0xAA)
+    if (p == 0xAA) {
+      delay(50);  // Esperar a que llegue el frame completo
+      bool processed = readBinaryTelemetry();
+      if (processed) {
+        return;  // Frame procesado, volver al loop
+      }
+    }
+    
+    // Mensajes ASCII (protocolo texto con checksum)
     String data = mySerial.readStringUntil('\n');
     data.trim();
 
     if (data.length() > 0) {
       String cleanMsg;
       
+      // Validar checksum
       if (!validateMessage(data, cleanMsg)) {
-        Serial.println("SAT-> CORRUPTO: " + data); // AÑADIDO: debug
+        Serial.println("SAT-> CORRUPTO: " + data);
         corruptedFromSat++;
         digitalWrite(errpin, HIGH);
         delay(100);
@@ -152,20 +416,22 @@ void loop() {
         return;
       }
       
-      Serial.println("SAT-> OK: " + cleanMsg); // AÑADIDO: debug
+      Serial.println("SAT-> OK: " + cleanMsg);
       
+      // Parsear mensaje (formato: ID:valor)
       int sepr = cleanMsg.indexOf(':');
       if (sepr > 0) {
         int id = cleanMsg.substring(0, sepr).toInt();
         String valor = cleanMsg.substring(sepr + 1);
 
+        // Protocolo 67: gestión de turnos
         if (id == 67 && valor == "0") {
-          satHasToken = false;
+          satHasToken = false;  // Satélite devuelve el token
           lastTokenSent = now;
           return;
         }
 
-        // Protocolo normal + orbital
+        // Procesar según protocolo
         if (id == 1) prot1(valor);
         else if (id == 2) prot2(valor);
         else if (id == 3) prot3(valor);
@@ -174,8 +440,10 @@ void loop() {
         else if (id == 6) prot6(valor);
         else if (id == 7) prot7(valor);
         else if (id == 8) prot8(valor);
-        else if (id == 9) prot9(valor);  // ORBITAL
+        else if (id == 9) prot9(valor);
+        else if (id == 10) prot10(valor);
 
+        // Encender LED de error si el mensaje contiene 'e'
         if (valor.startsWith("e")) {
           digitalWrite(errpin, HIGH);
           delay(500);
@@ -185,15 +453,4 @@ void loop() {
       lastReceived = now;
     }
   }
-
-  // Timeout
-  if (now - lastReceived > timeout) {
-    Serial.println("TIMEOUT: sin datos del satélite");
-    digitalWrite(errpin, HIGH);
-    delay(100);
-    digitalWrite(errpin, LOW);
-    delay(50);
-    lastReceived = now; // AÑADIDO: evitar spam de timeout
-  }
-
 }
