@@ -195,4 +195,5 @@ void loop() {
     delay(50);
     lastReceived = now; // AÑADIDO: evitar spam de timeout
   }
+
 }
