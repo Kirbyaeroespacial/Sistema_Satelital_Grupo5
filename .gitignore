@@ -1,0 +1,73 @@
+# Sistema de Comunicación Satelital - .gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+venv/
+ENV/
+env/
+.venv
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# PyCharm
+.idea/
+*.iml
+
+# VSCode
+.vscode/
+*.code-workspace
+
+# Arduino
+*.hex
+*.elf
+*.map
+
+# Datos generados
+*.log
+*.csv
+data/
+logs/
+exports/
+
+# Gráficas exportadas
+*.png
+*.jpg
+*.pdf
+!docs/*.png
+!docs/*.jpg
+
+# Archivos temporales
+*.tmp
+*.bak
+*.swp
+*~
+
+# Sistema Operativo
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Configuración local
+config.local.py
+settings.local.json
