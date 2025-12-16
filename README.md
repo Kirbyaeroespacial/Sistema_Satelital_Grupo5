@@ -3,7 +3,6 @@
 Sistema de comunicación satélite-tierra con tecnología LoRa que simula el envío y recepción de telemetría satelital en tiempo real. El sistema transmite datos de temperatura, humedad, distancia ultrasónica y posición orbital simulada, con validación por checksum y visualización gráfica mediante Python.
 
 [![Version](https://img.shields.io/badge/version-3.0-blue.svg)](https://github.com/Kirbyaeroespacial/Sistema_Satelital_Grupo5/releases)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Arduino](https://img.shields.io/badge/Arduino-Compatible-00979D.svg)](https://www.arduino.cc/)
 [![Python](https://img.shields.io/badge/Python-3.x-yellow.svg)](https://www.python.org/)
 
@@ -513,6 +512,7 @@ Hecho con ❤️ por el Grupo 5
 [⬆ Volver arriba](#-sistema-de-comunicación-satelital---grupo-5)
 
 </div>
+
 
 
 
