@@ -545,11 +545,6 @@ HC-SR04:
 - **rpraena** - [GitHub](https://github.com/rpraena)
 - **Michail2007** - [GitHub](https://github.com/Michail2007)
 
-## 📄 Licencia
-
-Este proyecto está bajo la Licencia MIT - ver el archivo [LICENSE](LICENSE) para más detalles.
-
----
 
 <div align="center">
 
@@ -560,5 +555,6 @@ Hecho con ❤️ por el Grupo 5
 [⬆ Volver arriba](#-sistema-de-comunicación-satelital---grupo-5)
 
 </div>
+
 
 
