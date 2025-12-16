@@ -495,48 +495,6 @@ HC-SR04:
 - [x] Comunicación LoRa con checksum
 - [x] Cálculo de media de temperaturas
 
-### Próximas Versiones
-
-#### Versión 3.1 (En Desarrollo)
-- [ ] Restaurar modo manual de control de servo
-- [ ] Optimización del intervalo de transmisión LoRa (objetivo: <10s)
-- [ ] Mejora en la actualización fluida de gráficas
-- [ ] Buffer circular para datos históricos
-
-#### Versión 4.0 (Planificada)
-- [ ] Soporte para múltiples satélites simultáneos
-- [ ] Predicción de trayectoria orbital con TLE
-- [ ] Dashboard web con Flask/Django
-- [ ] Base de datos para almacenamiento histórico (SQLite/PostgreSQL)
-- [ ] Sistema de alertas por email/SMS
-- [ ] Exportación de datos a CSV/JSON
-
-#### Versión 5.0 (Visión Futura)
-- [ ] Implementación de comandos uplink (tierra → satélite)
-- [ ] Control remoto de payloads
-- [ ] Integración con APIs de meteorología
-- [ ] Machine Learning para predicción de anomalías
-- [ ] Soporte para GPS real
-- [ ] Integración con GPredict
-
-### Optimizaciones Deseadas
-
-1. **Comunicación**
-   - Implementar ACK/NACK para transmisiones
-   - Protocolo de retransmisión automática
-   - Compresión de datos
-
-2. **Interfaz**
-   - Tema oscuro/claro
-   - Gráficas 3D para órbitas
-   - Exportación de reportes PDF
-
-3. **Hardware**
-   - Migración a ESP32 (WiFi + mayor potencia)
-   - Integración de GPS
-   - Panel solar para satélite
-
-
 ## 👥 Autores
 
 ### Grupo 5
@@ -555,6 +513,7 @@ Hecho con ❤️ por el Grupo 5
 [⬆ Volver arriba](#-sistema-de-comunicación-satelital---grupo-5)
 
 </div>
+
 
 
 
