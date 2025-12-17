@@ -2,15 +2,14 @@
 SoftwareSerial mySerial(10, 11); // RX=10, TX=11 para comunicación con satélite
 
 // ==================== PINES Y CONFIGURACIÓN ====================
-int errpin = 2;        // LED de error (checksum inválido)
-int alarmpin = 13;     // LED de alarma (timeout)
+int errpin = 2;        // LED de error (checksum, sensores, timeout)
 char potent = A0;      // Potenciómetro para control manual del servo
 
 // Timeouts y delays
 unsigned long lastReceived = 0;
 unsigned long last = 0;
 const unsigned long timeout = 20000;    // 20 segundos sin datos = alarma
-const unsigned long delay_ang = 500;    // Leer potenciómetro cada 500ms
+const unsigned long delay_ang = 5000;    // Leer potenciómetro cada 5000ms
 
 // Variables de modo manual
 bool manualMode = false;  // true = potenciómetro controla servo
@@ -81,23 +80,12 @@ bool validateMessage(const String &data, String &cleanMsg) {
 
 void prot1(String valor) { Serial.println("1:" + valor); }  // Temp y humedad
 void prot2(String valor) { Serial.println("2:" + valor); }  // Distancia
-void prot3(String valor) { Serial.println("3:" + valor); }  // Estado transmisión
-void prot4(String valor) { 
-  // Cambio de modo automático/manual
-  if (valor == "a") {
-    manualMode = false;
-    Serial.println("4:a");
-    Serial.println("Modo AUTO activado desde GUI");
-  } else if (valor == "m") {
-    manualMode = true;
-    Serial.println("4:m");
-    Serial.println("Modo MANUAL activado desde GUI");
-  }
-}
-void prot5(String valor) { Serial.println("5:" + valor); }  // Ángulo servo
+void prot3(String valor) { Serial.println("3:" + valor); }  // Error transmisión
+void prot4() {Serial.println("4:e1");}
+void prot5(String valor) { Serial.println("5:"); }  // Error angulo
 void prot6(String valor) { Serial.println("6:" + valor); }  // Confirmación ángulo
 void prot7(String valor) { Serial.println("7:" + valor); }  // Temperatura media
-void prot8(String valor) { Serial.println("8:e"); }         // Error/alarma
+void prot8(String valor) { Serial.println("8:e"); }         // Alta temperatura
 
 void prot9(String valor) {
   /**
@@ -272,13 +260,13 @@ void updateTimeoutAlarm() {
   if (now - lastReceived > timeout) {
     if (!timeoutAlarm) {
       timeoutAlarm = true;
-      Serial.println("¡ALARMA! TIMEOUT: sin datos del satélite");
+      Serial.println("3:TIMEOUT: sin datos del satélite");
     }
     
     // Parpadeo del LED
     if (now - lastAlarmToggle > ALARM_BLINK_INTERVAL) {
       alarmState = !alarmState;
-      digitalWrite(alarmpin, alarmState ? HIGH : LOW);
+      digitalWrite(errpin, alarmState ? HIGH : LOW);
       lastAlarmToggle = now;
     }
   } else {
@@ -287,7 +275,7 @@ void updateTimeoutAlarm() {
       timeoutAlarm = false;
       Serial.println("Comunicación restaurada");
     }
-    digitalWrite(alarmpin, LOW);
+    digitalWrite(errpin, LOW);
     alarmState = false;
   }
 }
@@ -298,8 +286,8 @@ void setup() {
   mySerial.begin(9600);    // Comunicación con satélite
   
   pinMode(errpin, OUTPUT);
-  pinMode(alarmpin, OUTPUT);
-  digitalWrite(alarmpin, LOW);
+  pinMode(errpin, OUTPUT);
+  digitalWrite(errpin, LOW);
   
   Serial.print("Tamaño frame esperado: ");
   Serial.println(TELEMETRY_FRAME_SIZE);
@@ -333,27 +321,31 @@ void loop() {
     lastStatsReport = now;
   }
 
-  // Comandos desde PC (Python GUI)
+  // ==================== COMANDOS DESDE PC ====================
   if (Serial.available()) {
     String command = Serial.readStringUntil('\n');
     command.trim();
+
     if (command.length() > 0) {
-      // Detectar comandos de cambio de modo
-      if (command == "4:a") {
+      // Strip checksum for mode detection
+      String baseCmd = command;
+      int asteriskIndex = command.indexOf('*');
+      if (asteriskIndex != -1) {
+        baseCmd = command.substring(0, asteriskIndex);
+      }
+
+      // Detect mode change commands
+      if (baseCmd == "4:a") {
         manualMode = false;
         Serial.println("Modo AUTO desde comando");
-      } else if (command == "4:m") {
+      } else if (baseCmd == "4:m") {
         manualMode = true;
         Serial.println("Modo MANUAL desde comando");
       }
-      
-      // Reenviar comando al satélite
-      if (command.indexOf('*') != -1) {
-        mySerial.println(command);  // Ya tiene checksum
-        Serial.println("GS-> " + command);
-      } else {
-        sendWithChecksum(command);  // Agregar checksum
-      }
+
+      // Forward exactly what Python sent (already has checksum)
+      mySerial.println(command);
+      Serial.println("GS-> " + command);
     }
   }
 
@@ -426,7 +418,7 @@ void loop() {
         if (id == 1) prot1(valor);
         else if (id == 2) prot2(valor);
         else if (id == 3) prot3(valor);
-        else if (id == 4) prot4(valor);
+        else if (id == 4) prot4();
         else if (id == 5) prot5(valor);
         else if (id == 6) prot6(valor);
         else if (id == 7) prot7(valor);
@@ -445,4 +437,3 @@ void loop() {
     }
   }
 }
-
