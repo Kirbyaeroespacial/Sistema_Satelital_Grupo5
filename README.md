@@ -14,7 +14,7 @@ Sistema de comunicación satélite-tierra con tecnología LoRa que simula el env
 - [Requisitos de Hardware](#requisitos-de-hardware)
 - [Requisitos de Software](#requisitos-de-software)
 - [Instalación](#instalación)
-- [Configuración](#️configuración)
+- [Configurar](#️configurar)
 - [Uso del Sistema](#uso-del-sistema)
 - [Estructura del Proyecto](#estructura-del-proyecto)
 - [Protocolo de Comunicación](#protocolo-de-comunicación)
@@ -23,7 +23,7 @@ Sistema de comunicación satélite-tierra con tecnología LoRa que simula el env
 - [Solución de Problemas](#solución-de-problemas)
 - [Roadmap](#roadmap)
 - [Autores](#autores)
-- [Licencia](#licencia)
+
 
 ## Características Principales
 
@@ -331,7 +331,7 @@ Control de Modo Servo:
 Modo Automático (4:a): Barrido automático 0-180°
 Modo Manual (4:m): Control mediante entrada de ángulo
 
-Configuración:
+## Configurar
 
 Intervalo (ms): Ajusta frecuencia de transmisión (200-10000 ms)
 Ángulo Manual: Envía comando de ángulo específico (0-180°)
@@ -636,6 +636,7 @@ Hecho con ❤️ por el Grupo 5
 [⬆ Volver arriba](#-sistema-de-comunicación-satelital---grupo-5)
 
 </div>
+
 
 
 
