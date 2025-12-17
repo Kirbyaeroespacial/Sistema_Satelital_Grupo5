@@ -2,41 +2,45 @@
 
 Sistema de comunicación satélite-tierra con tecnología LoRa que simula el envío y recepción de telemetría satelital en tiempo real. El sistema transmite datos de temperatura, humedad, distancia ultrasónica y posición orbital simulada, con validación por checksum y visualización gráfica mediante Python.
 
-[![Version](https://img.shields.io/badge/version-3.0-blue.svg)](https://github.com/Kirbyaeroespacial/Sistema_Satelital_Grupo5/releases)
+[![Version](https://img.shields.io/badge/version-4.0-blue.svg)](https://github.com/Kirbyaeroespacial/Sistema_Satelital_Grupo5/releases)
 [![Arduino](https://img.shields.io/badge/Arduino-Compatible-00979D.svg)](https://www.arduino.cc/)
 [![Python](https://img.shields.io/badge/Python-3.x-yellow.svg)](https://www.python.org/)
 
 ## Tabla de Contenidos
 
-- [Características Principales](#-características-principales)
-- [Video](https://drive.google.com/file/d/1oy3E7MwHHsBAGbqamduDBtTSIOgv2Od7/view?usp=drive_link)
-- [Arquitectura del Sistema](#-arquitectura-del-sistema)
-- [Requisitos de Hardware](#-requisitos-de-hardware)
-- [Requisitos de Software](#-requisitos-de-software)
-- [Instalación](#-instalación)
-- [Configuración](#️-configuración)
-- [Uso del Sistema](#-uso-del-sistema)
-- [Estructura del Proyecto](#-estructura-del-proyecto)
-- [Protocolo de Comunicación](#-protocolo-de-comunicación)
-- [Visualización de Datos](#-visualización-de-datos)
-- [Pruebas](#-pruebas)
-- [Solución de Problemas](#-solución-de-problemas)
-- [Roadmap](#-roadmap)
-- [Autores](#-autores)
-- [Licencia](#-licencia)
+- [Características Principales](#características-principales)
+- [Video](https://www.youtube.com/watch?v=6ODh15rp7SE)
+- [Arquitectura del Sistema](#arquitectura-del-sistema)
+- [Requisitos de Hardware](#requisitos-de-hardware)
+- [Requisitos de Software](#requisitos-de-software)
+- [Instalación](#instalación)
+- [Configurar](#️configurar)
+- [Uso del Sistema](#uso-del-sistema)
+- [Estructura del Proyecto](#estructura-del-proyecto)
+- [Protocolo de Comunicación](#protocolo-de-comunicación)
+- [Visualización de Datos](#visualización-de-datos)
+- [Pruebas](#pruebas)
+- [Solución de Problemas](#solución-de-problemas)
+- [Roadmap](#roadmap)
+- [Autores](#autores)
+
 
 ## Características Principales
 
-### Versión 3.0
-
-- 🌡️ **Telemetría en Tiempo Real**: Captura y transmisión de temperatura, humedad y distancia
-- 📡 **Comunicación LoRa**: Enlace inalámbrico de largo alcance entre satélite y estación terrena
-- 🛡️ **Validación de Datos**: Sistema de checksum para detección de errores en la transmisión
-- 🗺️ **Tracking Orbital**: Simulación y visualización de la posición orbital del satélite
-- 📊 **Dashboard Python**: Interfaz gráfica con visualización 2D de trayectoria y telemetría
-- 🔧 **Control de Servo**: Sistema automático/manual para orientación de antenas
-- 📝 **Sistema de Logs**: Registro de eventos y observaciones del usuario
-- 📈 **Análisis Estadístico**: Cálculo de media de las últimas 10 temperaturas (procesable en satélite o tierra)
+### Versión 4.0
+- Telemetría en Tiempo Real: Captura y transmisión de temperatura, humedad y distancia
+- Comunicación LoRa: Enlace inalámbrico mediante SoftwareSerial entre satélite y estación terrena
+- Validación de Datos: Sistema de checksum XOR para detección de errores en la transmisión
+- Tracking Orbital: Simulación orbital elíptica con inclinación y rotación terrestre
+- Ground Track: Traza terrestre del satélite sobre mapa mundial
+- Dashboard Python: Interfaz gráfica con visualización 3D de órbita y telemetría
+- Control de Servo: Sistema automático (barrido) y manual con control remoto de ángulo
+- Sistema de Logs: Registro de eventos con filtrado por tipo y fecha
+- Análisis Estadístico: Cálculo de media de las últimas 10 temperaturas (satélite o tierra)
+- Panel Solar Automatizado: Despliegue/retracción mediante stepper controlado por fotorresistor
+- Alarma de Timeout: Detección de pérdida de comunicación con LED parpadeante
+- Telemetría Binaria: Frames de 27 bytes para transmisión eficiente
+- Gestión de Turnos: Protocolo token passing para evitar colisiones
 
 ## Arquitectura del Sistema
 
@@ -45,11 +49,15 @@ Sistema de comunicación satélite-tierra con tecnología LoRa que simula el env
 │                      SEGMENTO ESPACIAL                       │
 │  ┌──────────────────────────────────────────────────────┐   │
 │  │  Arduino (Satélite)                                  │   │
-│  │  ├─ Sensor DHT22 (Temperatura/Humedad)              │   │
+│  │  ├─ Sensor DHT11 (Temperatura/Humedad)              │   │
 │  │  ├─ Sensor HC-SR04 (Distancia Ultrasónica)          │   │
-│  │  ├─ Generador de Posición Orbital                   │   │
-│  │  ├─ Módulo LoRa (Transmisor)                        │   │
-│  │  └─ Sistema de Checksum                             │   │
+│  │  ├─ Generador de Posición Orbital (Elíptica)        │   │
+│  │  ├─ Motor Stepper 28BYJ-48 (Panel Solar)            │   │
+│  │  ├─ Fotorresistor (Sensor de Luz)                   │   │
+│  │  ├─ Servo Motor (Orientación)                       │   │
+│  │  ├─ SoftwareSerial LoRa (TX=11, RX=10)              │   │
+│  │  ├─ Sistema de Checksum XOR                         │   │
+│  │  └─ Gestión de Turnos (Token Passing)               │   │
 │  └──────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
                             │
@@ -59,22 +67,25 @@ Sistema de comunicación satélite-tierra con tecnología LoRa que simula el env
 │                     SEGMENTO TERRESTRE                       │
 │  ┌──────────────────────────────────────────────────────┐   │
 │  │  Arduino (Estación Tierra)                           │   │
-│  │  ├─ Módulo LoRa (Receptor)                           │   │
+│  │  ├─ SoftwareSerial LoRa (TX=11, RX=10)              │   │
 │  │  ├─ Validador de Checksum                            │   │
-│  │  ├─ Servo Motor (Control Antena)                     │   │
+│  │  ├─ Potenciómetro A0 (Control Manual)               │   │
+│  │  ├─ Detección de Timeout (20s)                      │   │
 │  │  └─ Interfaz Serial → Python                         │   │
 │  └──────────────────────────────────────────────────────┘   │
 │                                                              │
 │  ┌──────────────────────────────────────────────────────┐   │
 │  │  Interfaz Python                                     │   │
-│  │  ├─ Comunicación Serial                              │   │
-│  │  ├─ Parser de Telemetría                             │   │
+│  │  ├─ Auto-detección de Puerto Serial                 │   │
+│  │  ├─ Parser de Telemetría Binaria                     │   │
 │  │  ├─ Gráficos en Tiempo Real                          │   │
-│  │  │  ├─ Temperatura                                   │   │
-│  │  │  ├─ Humedad                                       │   │
-│  │  │  ├─ Distancia                                     │   │
-│  │  │  └─ Trayectoria Orbital 2D                        │   │
-│  │  ├─ Sistema de Logs                                  │   │
+│  │  │  ├─ Temperatura y Humedad                         │   │
+│  │  │  ├─ Distancia (Radar Polar)                       │   │
+│  │  │  └─ Órbita 3D                                     │   │
+│  │  ├─ Ground Track sobre Mapa                          │   │
+│  │  ├─ Sistema de Logs con Filtrado                     │   │
+│  │  ├─ Control de Ángulo Manual (0-180°)               │   │
+│  │  ├─ Monitor de Panel Solar                           │   │
 │  │  └─ Panel de Control                                 │   │
 │  └──────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
@@ -84,9 +95,13 @@ Sistema de comunicación satélite-tierra con tecnología LoRa que simula el env
 
 ### Segmento Espacial (Satélite)
 - Arduino Uno/Nano o compatible
-- Módulo LoRa (SX1276/SX1278)
 - Sensor DHT11 (temperatura y humedad)
 - Sensor HC-SR04 (distancia ultrasónica)
+- Motor Stepper 28BYJ-48 con driver ULN2003
+- Fotorresistor (LDR)
+- Servo motor (SG90 o similar)
+- Resistencia 10kΩ (pull-down para fotorresistor)
+- LEDs indicadores (2x): Pin 12 (transmisión), Pin 13 (alarma)
 - Fuente de alimentación (baterías o USB)
 - Cables de conexión
 
@@ -94,6 +109,8 @@ Sistema de comunicación satélite-tierra con tecnología LoRa que simula el env
 - Arduino Uno/Nano o compatible
 - Módulo LoRa (SX1276/SX1278)
 - Servo motor (SG90 o similar)
+- Potenciómetro 10kΩ (control manual)
+- LED error (Pin 2)
 - Cable USB para comunicación serial
 - Ordenador con Python 3.x
 
@@ -112,14 +129,30 @@ HC-SR04:
   - TRIG → Pin 3
   - ECHO → Pin 4
 
-LoRa Module:
-  - VCC → 3.3V
+Servo Motor:
+  - VCC → 5V
   - GND → GND
-  - SCK → Pin 13
-  - MISO → Pin 12
-  - MOSI → Pin 11
-  - NSS → Pin 10
-  - RST → Pin 9
+  - SIGNAL → Pin 5
+
+Stepper Motor (ULN2003):
+  - IN1 → Pin 6
+  - IN2 → Pin 7
+  - IN3 → Pin 8
+  - IN4 → Pin 9
+  - VCC → 5V
+  - GND → GND
+
+Fotorresistor:
+  - Un extremo → 5V
+  - Otro extremo → A1 y resistencia 10kΩ
+  - Resistencia 10kΩ → GND
+
+SoftwareSerial:
+  - RX → Pin 10
+  - TX → Pin 11
+
+LED Transmisión → Pin 12
+LED Alarma → Pin 13
 ```
 
 #### Arduino Estación Tierra
@@ -137,6 +170,15 @@ LoRa Module:
   - MOSI → Pin 11
   - NSS → Pin 10
   - RST → Pin 9
+Potenciómetro:
+  - Terminal central → A0
+  - Terminales laterales → 5V y GND
+
+SoftwareSerial:
+  - RX → Pin 10
+  - TX → Pin 11
+
+LED Error → Pin 2
 ```
 
 ## Requisitos de Software
@@ -145,10 +187,11 @@ LoRa Module:
 - Arduino IDE 1.8.x o superior
 - Librerías requeridas:
   ```
-  - LoRa by Sandeep Mistry
-  - DHT sensor library by Adafruit
+- DHT sensor library by Adafruit
   - Adafruit Unified Sensor
   - Servo (incluida en Arduino IDE)
+  - Stepper (incluida en Arduino IDE)
+  - SoftwareSerial (incluida en Arduino IDE)
   ```
 
 ### Python
@@ -158,6 +201,7 @@ LoRa Module:
   pyserial>=3.5
   matplotlib>=3.5.0
   numpy>=1.21.0
+   pillow>=8.0.0
   ```
 
 ## Instalación
@@ -214,10 +258,8 @@ pip install -r requirements.txt
 
 Si no existe `requirements.txt`, instalar manualmente:
 ```bash
-pip install pyserial matplotlib numpy
+pip install pyserial matplotlib numpy pillow
 ```
-
-## Configuración
 
 ### Configuración del Puerto Serial
 
@@ -277,15 +319,36 @@ Próximamente se restaurará en futuras actualizaciones
 ```
 
 ### Comandos de la Interfaz
+Botones Principales
+Control de Transmisión:
 
-| Tecla | Función |
-|-------|---------|
-| `ESC` | Cerrar aplicación |
-| `S` | Guardar datos actuales |
-| `R` | Resetear gráficas |
-| `L` | Exportar logs |
+Iniciar Transmisión (3:i): Comienza envío de telemetría
+Parar Transmisión (3:p): Detiene envío
+Reanudar Transmisión (3:r): Continúa tras pausa
 
-## 📁 Estructura del Proyecto
+Control de Modo Servo:
+
+Modo Automático (4:a): Barrido automático 0-180°
+Modo Manual (4:m): Control mediante entrada de ángulo
+
+## Configurar
+
+Intervalo (ms): Ajusta frecuencia de transmisión (200-10000 ms)
+Ángulo Manual: Envía comando de ángulo específico (0-180°)
+Sitio cálculo temp media (42:1): Alterna entre cálculo local (satélite) o remoto (tierra)
+
+Visualización:
+
+Ver Eventos: Abre registro con filtros por tipo y fecha
+Ver Ground Track: Muestra traza terrestre sobre mapa
+
+Sistema de Observaciones
+
+Campo de texto para agregar notas personalizadas
+Las observaciones se registran con timestamp en eventos.txt
+Formato: YYYY-MM-DD HH:MM:SS|observacion|texto
+
+## Estructura del Proyecto
 
 ```
 Sistema_Satelital_Grupo5/
@@ -309,12 +372,26 @@ Sistema_Satelital_Grupo5/
     └── manuals/                    # Manuales de usuario
 ```
 
-## 📡 Protocolo de Comunicación
+## Protocolo de Comunicación
 
-### Formato de Trama
+### Formato de Trama Binaria
 
 ```
-[TEMP][HUM][DIST][POS_X][POS_Y][CHECKSUM]
+struct TelemetryFrame {
+  uint8_t header;        // 0xAA (marcador de inicio)
+  uint16_t humidity;     // Humedad × 100 (5023 = 50.23%)
+  int16_t temperature;   // Temperatura × 100 (2156 = 21.56°C)
+  uint16_t tempAvg;      // Temperatura media × 100
+  uint16_t distance;     // Distancia en mm
+  uint8_t servoAngle;    // Ángulo del servo (0-180)
+  uint16_t time_s;       // Tiempo orbital en segundos
+  // Coordenadas X, Y, Z (4 bytes cada una, little-endian)
+  uint8_t x_b0, x_b1, x_b2, x_b3;
+  uint8_t y_b0, y_b1, y_b2, y_b3;
+  uint8_t z_b0, z_b1, z_b2, z_b3;
+  uint8_t panelState;    // Estado panel solar (0-100%)
+  uint8_t checksum;      // XOR de todos los bytes anteriores
+};
 ```
 
 #### Ejemplo de Trama
@@ -333,7 +410,7 @@ T:23.5|H:65.2|D:150|X:1250|Y:340|CS:A3F
 | POS_Y | Posición orbital Y | km | -2000 a 2000 |
 | CS | Checksum | Hex | 00 a FF |
 
-### Algoritmo de Checksum
+### Algoritmo de Checksum 
 
 ```cpp
 uint8_t calculateChecksum(String data) {
@@ -355,27 +432,68 @@ def validate_checksum(data, received_checksum):
     return calculated == received_checksum
 ```
 
-## 📊 Visualización de Datos
+## Visualización de Datos
 
 ### Gráficas Disponibles
+1. Órbita Satelital (3D)
 
-1. **Temperatura vs Tiempo**
-   - Serie temporal con media móvil
-   - Alertas de umbrales críticos
+Visualización tridimensional con matplotlib
+Esfera verde representa la Tierra (R=6371 km)
+Trayectoria en cian, posición actual en rojo
+Actualización cada 500ms
 
-2. **Humedad vs Tiempo**
-   - Indicador de humedad relativa
-   - Zona de confort destacada
+2. Sonar de Distancia (Radar Polar)
 
-3. **Distancia vs Tiempo**
-   - Medición de distancia ultrasónica
-   - Útil para detección de objetos
+Gráfica polar: ángulo servo vs distancia
+Rango: 0-500 mm
+Últimos 20 puntos visibles
+Actualización cada 100ms
 
-4. **Trayectoria Orbital 2D**
-   - Visualización en plano X-Y
-   - Rastro de posiciones anteriores
-   - Posición actual destacada
+3. Temperatura y Humedad
 
+Tres líneas:
+
+Roja: Temperatura instantánea
+Cian: Humedad relativa
+Amarilla: Temperatura media (últimas 10)
+
+
+Ventana deslizante: 100 puntos
+Actualización cada 100ms
+
+4. Ground Track (Ventana separada)
+
+Traza terrestre sobre mapa mundial
+Conversión XYZ → lat/lon
+Marcador posición actual (rojo)
+Trayectoria histórica (cian, hasta 600 puntos)
+Líneas de referencia: Ecuador y Meridiano 0°
+
+5. Indicador Panel Solar
+
+Estados con colores:
+
+0% RETRAÍDO: Rojo (#ff6b6b)
+40% DESPLEGADO: Amarillo (#ffd93d)
+60% DESPLEGADO: Verde claro (#6bcf7f)
+100% DESPLEGADO: Verde (#51cf66)
+
+
+Actualización cada 500ms
+
+Sistema de Eventos
+Tipos de eventos:
+
+comando: Comandos enviados al satélite
+alarma: Errores, timeouts, temperaturas críticas
+observacion: Notas del usuario
+
+Archivo: eventos.txt
+Formato: YYYY-MM-DD HH:MM:SS|tipo|detalles
+Filtros disponibles:
+
+Por tipo: todos/comando/alarma/observacion
+Por rango de fechas: desde/hasta (dd-mm-YYYY HH:MM:SS)
 ### Características de Visualización
 
 - ✅ Actualización en tiempo real (~20 segundos por actualización)
@@ -384,7 +502,7 @@ def validate_checksum(data, received_checksum):
 - ✅ Leyendas y etiquetas claras
 - ✅ Colores diferenciados por tipo de dato
 
-## 🧪 Pruebas
+## Pruebas
 
 ### Suite de Tests Incluida
 
@@ -426,7 +544,7 @@ python test_UI.py
    - Medir tiempo desde captura hasta visualización
    - Optimizar buffer de serial
 
-## 🔍 Solución de Problemas
+## Solución de Problemas
 
 ### Problemas Comunes
 
@@ -484,17 +602,25 @@ HC-SR04:
 - Evitar superficies absorbentes de sonido
 ```
 
-## 🗺️ Roadmap
+## Roadmap
 
-### Versión Actual: 3.0 ✅
+### Versión Actual: 4.0 ✅
+-  Panel solar automatizado con motor stepper 28BYJ-48
+-  Control mediante fotorresistor con umbrales configurables
+- Órbita elíptica con ecuación de Kepler
+-  Inclinación orbital (51.6°) y rotación terrestre (ECEF)
+-  Telemetría binaria de 27 bytes
+-  Ground track con conversión XYZ→lat/lon
+-  Control manual de ángulo desde interfaz (0-180°)
+ - Alarma de timeout con LED parpadeante
+-  Cálculo temperatura media configurable (local/remoto)
+- Sistema de logs con filtrado avanzado
+- Visualización 3D de órbita con matplotlib
+- Auto-detección de puerto serial
+- Movimiento no-bloqueante del stepper
+- Gestión de turnos mediante token passing
 
-- [x] Captura y envío de posición satelital
-- [x] Gráficas dinámicas 2D
-- [x] Sistema de logs y observaciones
-- [x] Comunicación LoRa con checksum
-- [x] Cálculo de media de temperaturas
-
-## 👥 Autores
+## Autores
 
 ### Grupo 5
 
@@ -505,13 +631,12 @@ HC-SR04:
 
 <div align="center">
 
-**⭐ Si este proyecto te fue útil, considera darle una estrella en GitHub ⭐**
-
 Hecho con ❤️ por el Grupo 5
 
 [⬆ Volver arriba](#-sistema-de-comunicación-satelital---grupo-5)
 
 </div>
+
 
 
 
