@@ -8,22 +8,22 @@ Sistema de comunicación satélite-tierra con tecnología LoRa que simula el env
 
 ## Tabla de Contenidos
 
-- [Características Principales](#-características-principales)
+- [Características Principales](#características-principales)
 - [Video](https://www.youtube.com/watch?v=6ODh15rp7SE)
-- [Arquitectura del Sistema](#-arquitectura-del-sistema)
-- [Requisitos de Hardware](#-requisitos-de-hardware)
-- [Requisitos de Software](#-requisitos-de-software)
-- [Instalación](#-instalación)
-- [Configuración](#️-configuración)
-- [Uso del Sistema](#-uso-del-sistema)
-- [Estructura del Proyecto](#-estructura-del-proyecto)
-- [Protocolo de Comunicación](#-protocolo-de-comunicación)
-- [Visualización de Datos](#-visualización-de-datos)
-- [Pruebas](#-pruebas)
-- [Solución de Problemas](#-solución-de-problemas)
-- [Roadmap](#-roadmap)
-- [Autores](#-autores)
-- [Licencia](#-licencia)
+- [Arquitectura del Sistema](#arquitectura-del-sistema)
+- [Requisitos de Hardware](#requisitos-de-hardware)
+- [Requisitos de Software](#requisitos-de-software)
+- [Instalación](#instalación)
+- [Configuración](#️configuración)
+- [Uso del Sistema](#uso-del-sistema)
+- [Estructura del Proyecto](#estructura-del-proyecto)
+- [Protocolo de Comunicación](#protocolo-de-comunicación)
+- [Visualización de Datos](#visualización-de-datos)
+- [Pruebas](#pruebas)
+- [Solución de Problemas](#solución-de-problemas)
+- [Roadmap](#roadmap)
+- [Autores](#autores)
+- [Licencia](#licencia)
 
 ## Características Principales
 
@@ -348,7 +348,7 @@ Campo de texto para agregar notas personalizadas
 Las observaciones se registran con timestamp en eventos.txt
 Formato: YYYY-MM-DD HH:MM:SS|observacion|texto
 
-## 📁 Estructura del Proyecto
+## Estructura del Proyecto
 
 ```
 Sistema_Satelital_Grupo5/
@@ -372,7 +372,7 @@ Sistema_Satelital_Grupo5/
     └── manuals/                    # Manuales de usuario
 ```
 
-## 📡 Protocolo de Comunicación
+## Protocolo de Comunicación
 
 ### Formato de Trama Binaria
 
@@ -432,7 +432,7 @@ def validate_checksum(data, received_checksum):
     return calculated == received_checksum
 ```
 
-## 📊 Visualización de Datos
+## Visualización de Datos
 
 ### Gráficas Disponibles
 1. Órbita Satelital (3D)
@@ -502,7 +502,7 @@ Por rango de fechas: desde/hasta (dd-mm-YYYY HH:MM:SS)
 - ✅ Leyendas y etiquetas claras
 - ✅ Colores diferenciados por tipo de dato
 
-## 🧪 Pruebas
+## Pruebas
 
 ### Suite de Tests Incluida
 
@@ -544,7 +544,7 @@ python test_UI.py
    - Medir tiempo desde captura hasta visualización
    - Optimizar buffer de serial
 
-## 🔍 Solución de Problemas
+## Solución de Problemas
 
 ### Problemas Comunes
 
@@ -602,7 +602,7 @@ HC-SR04:
 - Evitar superficies absorbentes de sonido
 ```
 
-## 🗺️ Roadmap
+## Roadmap
 
 ### Versión Actual: 4.0 ✅
 -  Panel solar automatizado con motor stepper 28BYJ-48
@@ -620,7 +620,7 @@ HC-SR04:
 - Movimiento no-bloqueante del stepper
 - Gestión de turnos mediante token passing
 
-## 👥 Autores
+## Autores
 
 ### Grupo 5
 
@@ -636,6 +636,7 @@ Hecho con ❤️ por el Grupo 5
 [⬆ Volver arriba](#-sistema-de-comunicación-satelital---grupo-5)
 
 </div>
+
 
 
 
