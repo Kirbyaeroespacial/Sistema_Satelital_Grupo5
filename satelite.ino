@@ -74,6 +74,7 @@ bool tempFilled = false;
 float tempMedia = 0.0;
 float medias[3] = {0, 0, 0};          // Para detectar 3 medias consecutivas >100°C
 int mediaIndex = 0;
+bool local_med = true;                // TRUE = calcular aquí, FALSE = calcular en ground station
 
 // ============================================================
 // SIMULACIÓN ORBITAL (Órbita elíptica con inclinación)
@@ -313,6 +314,15 @@ void handleCommand(const String &cmd) {
       Serial.println(manualTargetAngle);
     }
   }
+  // === CONTROL DE TEMPERATURA MEDIA (TOGGLE) ===
+  else if (cmd == "42:1") {
+    local_med = !local_med; // Toggle: cambiar entre local y remoto
+    if (local_med) {
+      Serial.println("Temp media: LOCAL (calculada en satélite)");
+    } else {
+      Serial.println("Temp media: REMOTO (calculada en ground station)");
+    }
+  }
 }
 
 // ============================================================
@@ -342,6 +352,11 @@ void validateAndHandle(const String &data) {
 // TEMPERATURA MEDIA (últimas 10 mediciones)
 // ============================================================
 void updateTempMedia(float nuevaTemp) {
+  // Solo actualizar si el cálculo es local
+  if (!local_med) {
+    return;
+  }
+  
   tempHistory[tempIndex] = nuevaTemp;
   tempIndex = (tempIndex + 1) % TEMP_HISTORY;
   if (tempIndex == 0)
@@ -644,6 +659,8 @@ void setup() {
   Serial.print("Total pasos panel: ");
   Serial.println(TOTAL_DEPLOYMENT_STEPS);
   Serial.println("SAT listo (binario + Stepper + Timeout restaurado)");
+  Serial.print("Temp media inicial: ");
+  Serial.println(local_med ? "LOCAL" : "REMOTO");
   
   // ===== DESPLIEGUE INICIAL AUTOMÁTICO AL 100% =====
   Serial.println("🛰️ INICIANDO DESPLIEGUE COMPLETO DEL PANEL...");
@@ -685,120 +702,125 @@ void loop() {
   if (satSerial.available()) {
     String cmd = satSerial.readStringUntil('\n');
     cmd.trim();
-if (cmd.length())
-validateAndHandle(cmd); // Validar checksum y ejecutar
-}
-// === RECUPERACIÓN POR TIMEOUT DE TOKEN ===
-if (!canTransmit && now - lastTokenTime > TOKEN_TIMEOUT) {
-canTransmit = true;
-Serial.println("Timeout: recuperando transmisión");
-}
-// === CICLO PRINCIPAL DE TRANSMISIÓN ===
-if (now - lastSend >= sendPeriod) {
-lastSend = now;
-if (sending && canTransmit) {
-  // Leer sensores
-  float h = dht.readHumidity();
-  float t = dht.readTemperature();
-  bool temp_ok = !(isnan(h) || isnan(t));
-  
-  if (temp_ok) {
-    updateTempMedia(t); // Actualizar temperatura media
+    if (cmd.length())
+      validateAndHandle(cmd); // Validar checksum y ejecutar
   }
   
-  if (!temp_ok) {
-    sendPacketWithChecksum(4, "e:1"); // Enviar error de sensor
+  // === RECUPERACIÓN POR TIMEOUT DE TOKEN ===
+  if (!canTransmit && now - lastTokenTime > TOKEN_TIMEOUT) {
+    canTransmit = true;
+    Serial.println("Timeout: recuperando transmisión");
   }
+  
+  // === CICLO PRINCIPAL DE TRANSMISIÓN ===
+  if (now - lastSend >= sendPeriod) {
+    lastSend = now;
+    if (sending && canTransmit) {
+      // Leer sensores
+      float h = dht.readHumidity();
+      float t = dht.readTemperature();
+      bool temp_ok = !(isnan(h) || isnan(t));
+      
+      if (temp_ok && local_med) {
+        updateTempMedia(t); // Solo actualizar si el cálculo es local
+      }
+      
+      if (!temp_ok) {
+        sendPacketWithChecksum(4, "e:1"); // Enviar error de sensor
+      }
 
-  int dist = pingSensor();
-  bool dist_ok = (dist != 0);
+      int dist = pingSensor();
+      bool dist_ok = (dist != 0);
 
-  // Calcular posición orbital
-  uint16_t orb_time;
-  int32_t orb_x, orb_y, orb_z;
-  compute_orbit(orb_time, orb_x, orb_y, orb_z);
+      // Calcular posición orbital
+      uint16_t orb_time;
+      int32_t orb_x, orb_y, orb_z;
+      compute_orbit(orb_time, orb_x, orb_y, orb_z);
 
-  // Preparar datos para telemetría binaria
-  uint16_t hum100 = temp_ok ? (uint16_t)((int)(h * 100.0f)) : 0;
-  int16_t temp100 = temp_ok ? (int16_t)((int)(t * 100.0f)) : 0;
-  uint16_t avg100 = (uint16_t)((int)(tempMedia * 100.0f));
-  uint16_t dist_field = dist_ok ? (uint16_t)dist : 0;
-  uint8_t servo_field = (motor.attached()) ? (uint8_t)servoAngle : 0xFF;
+      // Preparar datos para telemetría binaria
+      uint16_t hum100 = temp_ok ? (uint16_t)((int)(h * 100.0f)) : 0;
+      int16_t temp100 = temp_ok ? (int16_t)((int)(t * 100.0f)) : 0;
+      // Si local_med=false, enviar 0 (o 0xFFFF) para indicar que no se calcula aquí
+      uint16_t avg100 = local_med ? (uint16_t)((int)(tempMedia * 100.0f)) : 0;
+      uint16_t dist_field = dist_ok ? (uint16_t)dist : 0;
+      uint8_t servo_field = (motor.attached()) ? (uint8_t)servoAngle : 0xFF;
 
-  // Enviar trama binaria
-  sendTelemetryBinary(
-    hum100,
-    temp100,
-    avg100,
-    dist_field,
-    servo_field,
-    orb_time,
-    orb_x,
-    orb_y,
-    orb_z,
-    (uint8_t)currentPanelState
-  );
+      // Enviar trama binaria
+      sendTelemetryBinary(
+        hum100,
+        temp100,
+        avg100,
+        dist_field,
+        servo_field,
+        orb_time,
+        orb_x,
+        orb_y,
+        orb_z,
+        (uint8_t)currentPanelState
+      );
 
-  delay(100); // Pequeña pausa para estabilidad
+      delay(100); // Pequeña pausa para estabilidad
 
-  // Liberar turno
-  sendPacketWithChecksum(67, "0");
-  canTransmit = false;
+      // Liberar turno
+      sendPacketWithChecksum(67, "0");
+      canTransmit = false;
 
-  panelStateChanged = false;
-}
+      panelStateChanged = false;
+    }
 
-// Encender LED de transmisión
-digitalWrite(LEDPIN, HIGH);
-ledTimer = now;
-ledState = true;
-}
-// === ENVÍO INMEDIATO SI CAMBIÓ EL PANEL ===
-// Enviar telemetría extra cuando el panel cambia de estado
-if (panelStateChanged && canTransmit && sending && (now - lastSend > 1000)) {
-lastSend = now;
-// Leer sensores
-float h = dht.readHumidity();
-float t = dht.readTemperature();
-if (!isnan(t)) updateTempMedia(t);
-int dist = pingSensor();
+    // Encender LED de transmisión
+    digitalWrite(LEDPIN, HIGH);
+    ledTimer = now;
+    ledState = true;
+  }
+  
+  // === ENVÍO INMEDIATO SI CAMBIÓ EL PANEL ===
+  // Enviar telemetría extra cuando el panel cambia de estado
+  if (panelStateChanged && canTransmit && sending && (now - lastSend > 1000)) {
+    lastSend = now;
+    // Leer sensores
+    float h = dht.readHumidity();
+    float t = dht.readTemperature();
+    if (!isnan(t) && local_med) updateTempMedia(t);
+    int dist = pingSensor();
 
-// Calcular posición orbital
-uint16_t orb_time;
-int32_t orb_x, orb_y, orb_z;
-compute_orbit(orb_time, orb_x, orb_y, orb_z);
+    // Calcular posición orbital
+    uint16_t orb_time;
+    int32_t orb_x, orb_y, orb_z;
+    compute_orbit(orb_time, orb_x, orb_y, orb_z);
 
-// Preparar datos
-uint16_t hum100 = isnan(h) ? 0 : (uint16_t)((int)(h * 100.0f));
-int16_t temp100 = isnan(t) ? 0 : (int16_t)((int)(t * 100.0f));
-uint16_t avg100 = (uint16_t)((int)(tempMedia * 100.0f));
-uint16_t dist_field = dist == 0 ? 0 : (uint16_t)dist;
-uint8_t servo_field = (motor.attached()) ? (uint8_t)servoAngle : 0xFF;
+    // Preparar datos
+    uint16_t hum100 = isnan(h) ? 0 : (uint16_t)((int)(h * 100.0f));
+    int16_t temp100 = isnan(t) ? 0 : (int16_t)((int)(t * 100.0f));
+    uint16_t avg100 = local_med ? (uint16_t)((int)(tempMedia * 100.0f)) : 0;
+    uint16_t dist_field = dist == 0 ? 0 : (uint16_t)dist;
+    uint8_t servo_field = (motor.attached()) ? (uint8_t)servoAngle : 0xFF;
 
-// Enviar trama binaria
-sendTelemetryBinary(
-  hum100,
-  temp100,
-  avg100,
-  dist_field,
-  servo_field,
-  orb_time,
-  orb_x,
-  orb_y,
-  orb_z,
-  (uint8_t)currentPanelState
-);
+    // Enviar trama binaria
+    sendTelemetryBinary(
+      hum100,
+      temp100,
+      avg100,
+      dist_field,
+      servo_field,
+      orb_time,
+      orb_x,
+      orb_y,
+      orb_z,
+      (uint8_t)currentPanelState
+    );
 
-delay(100);
+    delay(100);
 
-// Liberar turno
-sendPacketWithChecksum(67, "0");
-canTransmit = false;
-panelStateChanged = false;
-}
-// === APAGAR LED DE TRANSMISIÓN ===
-if (ledState && now - ledTimer > 80) {
-digitalWrite(LEDPIN, LOW);
-ledState = false;
-}
+    // Liberar turno
+    sendPacketWithChecksum(67, "0");
+    canTransmit = false;
+    panelStateChanged = false;
+  }
+  
+  // === APAGAR LED DE TRANSMISIÓN ===
+  if (ledState && now - ledTimer > 80) {
+    digitalWrite(LEDPIN, LOW);
+    ledState = false;
+  }
 }
