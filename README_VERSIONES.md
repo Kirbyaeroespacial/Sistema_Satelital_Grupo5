@@ -1,5 +1,5 @@
 
-### VERSIÓN 1
+# VERSIÓN 1
 
 # 🛰️ Satélite (Arduino) 
 El satelite responde a comandos remotos (iniciar, pausar y reanudar transmisión) enviados desde la PC, y transmite periódicamente los datos de temperatura y humedad al satélite. Cuando la transmisión está pausada, envía un heartbeat (g) para indicar que el sistema sigue operativo, y reporta errores en caso de fallos del sensor.
@@ -22,7 +22,7 @@ El software en Python proporciona una interfaz gráfica de control y monitoreo e
 
 
 
-### VERSIÓN 2
+# VERSIÓN 2
 # 🛰️ Satélite (Arduino)  
 Respecto a la versión 2 el satélite  implementa un protocolo de aplicación permitiendo el envío simultáneo de múltiples tipos de datos: telemetría ambiental, distancia, ángulo del servo y estados de error. Además se añade el cálculo de una temperatura media sobre los últimos 10 valores de temperatura recibidos, junto con un sistema de alerta crítica que detecta sobretemperatura sostenida. Finalmente también hemos integrado  un servo motorizado y un sensor ultrasónico de distancia que envía un ángulo (hasta 180º) y distancia. 
 
@@ -39,7 +39,7 @@ En el Python hemos incorporado una visualización tipo radar en coordenadas pola
 
 
 
-### VERSIÓN 3
+# VERSIÓN 3
 # 🛰️ Satélite (Arduino)  
 En esta versión 3 hemos incorporado un sistema con checksum para el envío de mensajes de manera que antes de enviar el mensaje lo pasa por una función checksum que transforma el valor del paquete y lo envía, además si el checksum enviado con corresponde con el que debería el mensaje se descarta ya que es considerado un mensaje corrupto. Por otro lado también hemos implementado una función que calcula a tiempo real una hipotética órbita satelital con unas funciones y valores ya asumidos. Otro gran avance es que la comunicacion ahora es mediante LoRa, a distancia, y no mediante cables, lo que nos ha llevado a tener que crear un sistema mediante de funciones que según quien tenga el token puede enviar o no información para no saturar el LoRa.
 
@@ -60,7 +60,7 @@ En el Python esta versión también se encuentra implementado la función de che
 
 
 
-### VERSIÓN 4
+# VERSIÓN 4
 # 🛰️ Satélite (Arduino)  
 En el satélite para la versión 4 hay grandes innovaciones. Lo primero y mas destacable ha sido incorporar una placa solar que se despliega y repliega mediante un complejo sistema de engranajes según la cantidad de luz que recibe el sensor de luz. Este proceso es no-bloqueante y si hay mucha luz recibida se despliega más que si hubiese poca. Además las funciones se han ordenado y el código es más legible y entendible.
 
